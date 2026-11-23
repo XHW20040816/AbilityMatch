@@ -65,14 +65,13 @@ AbilityMatch/
 │       └── ohosTest/               # Hypium UI 自动化测试
 ├── server/                         # 账号服务本地骨架（零依赖 Node，可独立运行）
 ├── cloudfunctions/auth/            # AGC 云函数入口（HTTP 触发器，与 server 共用核心逻辑）
-├── docs/                           # 需求、设计、测试与论文文档
 ├── build-profile.json5
 └── oh-package.json5
 ```
 
 ## 快速开始
 
-1. 安装 DevEco Studio 5.0+，并配置 HarmonyOS NEXT SDK（详见 [环境配置与安装指南](docs/00-环境配置与安装指南.md)）。
+1. 安装 DevEco Studio 5.0+，并配置 HarmonyOS NEXT SDK（最低 API 12）。
 2. 使用 DevEco Studio 打开本目录：`File > Open`，选择 `AbilityMatch` 文件夹。
 3. 首次打开后点击工具栏 **Sync** 同步依赖；如 hvigor 版本不一致，按提示自动修复。
 4. 打开 `Device Manager` 启动模拟器或连接真机，点击 **Run** 构建并安装 HAP。
@@ -97,7 +96,7 @@ hvigorw --mode module -p module=entry@ohosTest test
 - `assembleHap`：33 个任务构建成功，耗时约 39.6 s
 - 单元测试：2 套件 / 9 用例全部通过，行覆盖率 40.45%
 - UI 自动化测试：`Tests run: 5, Failure: 0, Pass: 5`（3 条主流程 + 2 条性能用例）
-- 证书检索性能：1000 条数据下关键字检索平均 17.05 ms、p95 45 ms（见 `docs/perf_cert_search.json`）
+- 证书检索性能：1000 条数据下关键字检索平均 17.05 ms、p95 45 ms
 
 ## 账号服务（可选）
 
@@ -128,17 +127,6 @@ hvigorw --mode module -p module=entry@ohosTest test
 4. **降级与成本控制**：未配置、超时（15 s）、HTTP 非 200、返回非 JSON 时自动沿用本地规则分，页面明确提示当前评分方式；列表场景只对规则分前 8 个结果调用模型，并带 10 分钟结果缓存与并发度 3 的限制。
 
 配置方式：企业/学生登录后进入「我的 → 数据工具 → 大模型语义匹配」，填写接口地址（如 `https://api.deepseek.com/v1`）、模型名（如 `deepseek-chat`）与 API Key，打开开关后点「测试连接」即可验证；保存后下一次进入匹配页生效。
-
-## 文档索引
-
-- [环境配置与安装指南](docs/00-环境配置与安装指南.md)：环境要求、本机配置、依赖安装与构建验证
-- [需求分析](docs/01-需求分析.md)：用户角色、功能/非功能需求、用例图、业务流程与验收对照
-- [数据库设计](docs/02-数据库设计.md)：ER 图、9 张表结构、建表 SQL、Preferences 键与索引优化
-- [系统架构与接口设计](docs/03-系统架构与接口设计.md)：分层架构、目录规划、页面路由、核心接口与匹配算法
-- [需求实现对照与差距分析](docs/04-需求实现对照与差距分析.md)：题目要求逐条对照、实现证据与差距说明
-- [系统测试报告](docs/05-系统测试报告.md)：测试环境、构建与单元测试结果、覆盖率、功能用例与缺陷清单
-- [毕业设计论文大纲](docs/06-毕业设计论文大纲.md)：章节字数分配、必备图表清单、答辩 PPT 结构与提交自检
-- [安装与运行说明](docs/安装与运行说明.md)、[数据库表结构说明](docs/数据库表结构说明.md)、[系统测试用例表](docs/系统测试用例表.md)
 
 ## 已知限制
 
