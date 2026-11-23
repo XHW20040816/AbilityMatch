@@ -136,11 +136,42 @@ export interface DimensionScores {
   direction: number;
 }
 
+/** 大模型语义评分：与六个规则维度一一对应，取值 0~1 */
+export interface SemanticScores {
+  education: number;
+  skill: number;
+  certificate: number;
+  experience: number;
+  honor: number;
+  direction: number;
+}
+
+/** 一次大模型语义评估的完整结果（含可解释依据） */
+export interface SemanticResult {
+  scores: SemanticScores;
+  /** 模型给出的综合契合度 0~1 */
+  overall: number;
+  /** 一句话总评 */
+  reason: string;
+  strengths: string[];
+  gaps: string[];
+  /** 实际调用的模型名，便于演示时说明来源 */
+  model: string;
+  createTime: number;
+}
+
 export interface MatchResult {
   totalScore: number;
   dimensionScores: DimensionScores;
   gapItems: string[];
   suggestions: string[];
+  /** 是否融合了大模型语义评分（false/未定义表示纯本地规则分） */
+  semantic?: boolean;
+  /** 融合前的大模型原始评分，用于得分明细对照 */
+  semanticScores?: SemanticScores;
+  semanticOverall?: number;
+  semanticReason?: string;
+  semanticModel?: string;
 }
 
 export interface MatchRecord {

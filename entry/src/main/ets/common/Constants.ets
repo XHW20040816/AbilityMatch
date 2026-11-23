@@ -1,4 +1,4 @@
-import { MatchWeights } from '../model/Entity';
+import { DimensionScores, MatchWeights } from '../model/Entity';
 
 export class Constants {
   static readonly DB_NAME: string = 'AbilityMatch.db';
@@ -37,6 +37,41 @@ export class Constants {
   static readonly KEY_FILTER_CACHE: string = 'honor_filter_cache';
   static readonly KEY_DICT_VERSION: string = 'skill_dict_version';
   static readonly KEY_DB_VERSION: string = 'db_version';
+
+  // ---- 大模型语义匹配（OpenAI 兼容的 chat/completions 接口） ----
+  static readonly KEY_LLM_ENABLED: string = 'llm_enabled';
+  static readonly KEY_LLM_BASE_URL: string = 'llm_base_url';
+  static readonly KEY_LLM_API_KEY: string = 'llm_api_key';
+  static readonly KEY_LLM_MODEL: string = 'llm_model';
+  static readonly LLM_DEFAULT_BASE_URL: string = 'https://api.deepseek.com/v1';
+  static readonly LLM_DEFAULT_MODEL: string = 'deepseek-chat';
+  // 单次请求超时：太短会让弱网误降级，太长会拖慢首屏
+  static readonly LLM_TIMEOUT_MS: number = 15000;
+  // 语义融合系数 α：语义越擅长的维度占比越高；学历/荣誉属于客观事实，只做微调
+  static readonly SEMANTIC_ALPHA: DimensionScores = {
+    education: 0.2,
+    skill: 0.45,
+    certificate: 0.3,
+    experience: 0.4,
+    honor: 0.2,
+    direction: 0.35
+  };
+  // 列表页只对规则分最高的前 K 个结果调用大模型，控制时延与调用成本
+  static readonly SEMANTIC_TOPK: number = 8;
+  static readonly SEMANTIC_CACHE_TTL: number = 10 * 60 * 1000;
+  static readonly SEMANTIC_CACHE_LIMIT: number = 200;
+
+  // ---- 账号服务（AGC 云函数 / 本地 Node 骨架，统一 REST + JWT） ----
+  static readonly KEY_AUTH_ENABLED: string = 'auth_remote_enabled';
+  static readonly KEY_AUTH_BASE_URL: string = 'auth_base_url';
+  static readonly KEY_AUTH_TOKEN: string = 'auth_access_token';
+  static readonly KEY_AUTH_REFRESH_TOKEN: string = 'auth_refresh_token';
+  static readonly KEY_AUTH_TOKEN_EXPIRE: string = 'auth_token_expire';
+  // 模拟器访问宿主机用 10.0.2.2；真机用局域网 IP，均可在数据工具页修改
+  static readonly AUTH_DEFAULT_BASE_URL: string = 'http://10.0.2.2:8080';
+  static readonly AUTH_TIMEOUT_MS: number = 8000;
+  // 本地镜像账号的占位哈希：表示该账号由云端托管，本机不可直接校验密码
+  static readonly AUTH_REMOTE_ONLY_HASH: string = 'REMOTE_ONLY';
 
   static readonly DEFAULT_WEIGHTS: MatchWeights = {
     education: 0.15,

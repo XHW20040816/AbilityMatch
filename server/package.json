@@ -1,0 +1,13 @@
+{
+  "name": "abilitymatch-auth-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AbilityMatch 账号服务本地演示骨架（零依赖，Node 内置模块实现）",
+  "main": "local.js",
+  "scripts": {
+    "start": "node local.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

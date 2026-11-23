@@ -12,6 +12,7 @@ import {
 } from '../model/Entity';
 import { honorRepo, jobRepo, matchRepo, profileRepo, studentRepo, tagRepo } from '../repository/Repositories';
 import { MatchEngine } from '../service/MatchEngine';
+import { SemanticItem, SemanticMatchService } from '../service/SemanticMatchService';
 import { Card3D } from '../view/Card3D';
 import { EmptyState } from '../view/EmptyState';
 
@@ -28,6 +29,8 @@ struct JobListPage {
   @State directionFilter: string = '';
   @State keyword: string = '';
   @State recentSearches: string[] = [];
+  /** 匹配方式说明：本地规则分 / 已融合大模型语义分 / 降级原因 */
+  @State aiHint: string = '';
   private readonly historySize: number = 5;
   private context: common.UIAbilityContext = getContext(this) as common.UIAbilityContext;
 
@@ -66,18 +69,19 @@ struct JobListPage {
     PrefsHelper.put(Constants.KEY_JOB_SEARCH, '');
   }
 
-  private load(): void {
-    Promise.all([
-      studentRepo.getById(this.studentId),
-      tagRepo.listByStudent(this.studentId),
-      profileRepo.listSkillCerts(this.studentId),
-      profileRepo.listProjects(this.studentId),
-      honorRepo.list(this.studentId, { keyword: '', honorType: '', level: '', yearFrom: 0, yearTo: 0, issuer: '' }, 200, 0),
-      jobRepo.listActive(),
-      ResourceHelper.loadAdviceLib(this.context),
-      ResourceHelper.loadSkillDict(this.context)
-    ]).then((values: [Student | null, AbilityTag[], SkillCertificate[], ProjectExperience[],
-      HonorCertificate[], JobRequirement[], AdviceLib, SkillDict]) => {
+  private async load(): Promise<void> {
+    try {
+      const values: [Student | null, AbilityTag[], SkillCertificate[], ProjectExperience[],
+        HonorCertificate[], JobRequirement[], AdviceLib, SkillDict] = await Promise.all([
+        studentRepo.getById(this.studentId),
+        tagRepo.listByStudent(this.studentId),
+        profileRepo.listSkillCerts(this.studentId),
+        profileRepo.listProjects(this.studentId),
+        honorRepo.list(this.studentId, { keyword: '', honorType: '', level: '', yearFrom: 0, yearTo: 0, issuer: '' }, 200, 0),
+        jobRepo.listActive(),
+        ResourceHelper.loadAdviceLib(this.context),
+        ResourceHelper.loadSkillDict(this.context)
+      ]);
       const student: Student = values[0] as Student;
       const tags: AbilityTag[] = values[1] as AbilityTag[];
       const certs: SkillCertificate[] = values[2] as SkillCertificate[];
@@ -86,15 +90,35 @@ struct JobListPage {
       const jobs: JobRequirement[] = values[5] as JobRequirement[];
       const advice: AdviceLib = values[6] as AdviceLib;
       const dict: SkillDict = values[7] as SkillDict;
+
+      // 第一步：本地六维加权规则分（离线可用，作为基线）
+      const baseViews: JobView[] = [];
+      for (const job of jobs) {
+        baseViews.push({ job: job, result: MatchEngine.compute(student, tags, certs, projects, honors, job, advice, dict) });
+      }
+
+      // 先展示规则分结果，避免等待大模型时白屏
+      baseViews.sort((a: JobView, b: JobView) => b.result.totalScore - a.result.totalScore);
+      this.views = baseViews;
+
+      // 第二步：大模型语义增强（仅前 K 个，未配置或失败时自动沿用规则分）
+      const items: SemanticItem[] = baseViews.map((view: JobView): SemanticItem => {
+        return { studentId: this.studentId, job: view.job, result: view.result } as SemanticItem;
+      });
+      const enhanced: MatchResult[] = await SemanticMatchService.enhanceBatch(items, Constants.SEMANTIC_TOPK);
       const views: JobView[] = [];
       const tasks: Promise<number>[] = [];
-      for (const job of jobs) {
-        const result: MatchResult = MatchEngine.compute(student, tags, certs, projects, honors, job, advice, dict);
-        views.push({ job: job, result: result });
+      let semanticCount: number = 0;
+      for (let i = 0; i < baseViews.length; i++) {
+        const result: MatchResult = enhanced[i];
+        if (result.semantic === true) {
+          semanticCount++;
+        }
+        views.push({ job: baseViews[i].job, result: result });
         tasks.push(matchRepo.replaceToday({
           id: 0,
           studentId: this.studentId,
-          jobId: job.id,
+          jobId: baseViews[i].job.id,
           direction: 0,
           totalScore: result.totalScore,
           dimensionScores: result.dimensionScores,
@@ -103,13 +127,28 @@ struct JobListPage {
           createTime: Date.now()
         }));
       }
-      return Promise.all(tasks).then(() => {
-        views.sort((a: JobView, b: JobView) => b.result.totalScore - a.result.totalScore);
-        this.views = views;
-      });
-    }).catch((error: Error) => {
-      promptAction.showToast({ message: '匹配失败：' + error.message });
-    });
+      await Promise.all(tasks);
+      views.sort((a: JobView, b: JobView) => b.result.totalScore - a.result.totalScore);
+      this.views = views;
+      await this.updateAiHint(semanticCount);
+    } catch (error) {
+      const message: string = error instanceof Error ? error.message : String(error);
+      promptAction.showToast({ message: '匹配失败：' + message });
+    }
+  }
+
+  private async updateAiHint(semanticCount: number): Promise<void> {
+    if (semanticCount > 0) {
+      this.aiHint = `已融合大模型语义评分：${semanticCount} 个岗位（本地六维 + LLM）`;
+      return;
+    }
+    const enabled: boolean = await SemanticMatchService.isEnabled();
+    if (enabled) {
+      const reason: string = SemanticMatchService.getLastError();
+      this.aiHint = reason.length > 0 ? `大模型调用失败，已用本地规则分：${reason}` : '大模型未返回有效结果，已用本地规则分';
+    } else {
+      this.aiHint = '当前为本地六维加权评分，配置大模型后自动叠加语义分';
+    }
   }
 
   private directions(): string[] {
@@ -135,8 +174,9 @@ struct JobListPage {
     Column({ space: 12 }) {
       Column({ space: 6 }) {
         Text('岗位推荐').fontSize(22).fontWeight(FontWeight.Bold).fontColor($r('app.color.text_primary'))
-        Text('已按匹配度排序，点开卡片看差距与建议')
+        Text(this.aiHint.length > 0 ? this.aiHint : '已按匹配度排序，点开卡片看差距与建议')
           .fontSize(12).fontColor($r('app.color.text_secondary'))
+          .maxLines(2).textOverflow({ overflow: TextOverflow.Ellipsis })
       }
       .width('100%')
       .alignItems(HorizontalAlign.Start)
@@ -260,6 +300,12 @@ struct JobListPage {
                       .padding({ left: 8, right: 8, top: 3, bottom: 3 })
                       .borderRadius(10)
                       .backgroundColor($r('app.color.chip_background'))
+                    if (item.result.semantic === true) {
+                      Text('AI 语义').fontSize(10).fontColor($r('app.color.on_primary'))
+                        .padding({ left: 7, right: 7, top: 3, bottom: 3 })
+                        .borderRadius(10)
+                        .linearGradient({ angle: 135, colors: [['#8E7CFF', 0], ['#5B45E0', 1]] })
+                    }
                   }
 
                   Flex({ wrap: FlexWrap.Wrap }) {

@@ -8,6 +8,7 @@ import {
 } from '../model/Entity';
 import { honorRepo, jobRepo, profileRepo, studentRepo, tagRepo } from '../repository/Repositories';
 import { MatchEngine } from '../service/MatchEngine';
+import { SemanticMatchService } from '../service/SemanticMatchService';
 import { ScoreBar } from '../view/ScoreBar';
 import { TagChip } from '../view/TagChip';
 
@@ -20,6 +21,7 @@ struct CandidateDetailPage {
   @State job: JobRequirement | null = null;
   @State tags: AbilityTag[] = [];
   @State result: MatchResult | null = null;
+  @State aiLoading: boolean = false;
   private context: common.UIAbilityContext = getContext(this) as common.UIAbilityContext;
 
   aboutToAppear(): void {
@@ -33,18 +35,19 @@ struct CandidateDetailPage {
     this.load();
   }
 
-  private load(): void {
-    Promise.all([
-      studentRepo.getById(this.studentId),
-      jobRepo.getById(this.jobId),
-      tagRepo.listByStudent(this.studentId),
-      profileRepo.listSkillCerts(this.studentId),
-      profileRepo.listProjects(this.studentId),
-      honorRepo.list(this.studentId, { keyword: '', honorType: '', level: '', yearFrom: 0, yearTo: 0, issuer: '' }, 200, 0),
-      ResourceHelper.loadAdviceLib(this.context),
-      ResourceHelper.loadSkillDict(this.context)
-    ]).then((values: [Student | null, JobRequirement | null, AbilityTag[], SkillCertificate[],
-      ProjectExperience[], HonorCertificate[], AdviceLib, SkillDict]) => {
+  private async load(): Promise<void> {
+    try {
+      const values: [Student | null, JobRequirement | null, AbilityTag[], SkillCertificate[],
+        ProjectExperience[], HonorCertificate[], AdviceLib, SkillDict] = await Promise.all([
+        studentRepo.getById(this.studentId),
+        jobRepo.getById(this.jobId),
+        tagRepo.listByStudent(this.studentId),
+        profileRepo.listSkillCerts(this.studentId),
+        profileRepo.listProjects(this.studentId),
+        honorRepo.list(this.studentId, { keyword: '', honorType: '', level: '', yearFrom: 0, yearTo: 0, issuer: '' }, 200, 0),
+        ResourceHelper.loadAdviceLib(this.context),
+        ResourceHelper.loadSkillDict(this.context)
+      ]);
       const student: Student | null = values[0] as Student | null;
       const job: JobRequirement | null = values[1] as JobRequirement | null;
       if (student === null || job === null) {
@@ -55,13 +58,22 @@ struct CandidateDetailPage {
       this.student = student;
       this.job = job;
       this.tags = tags;
-      this.result = MatchEngine.compute(
+      const base: MatchResult = MatchEngine.compute(
         student, tags, values[3] as SkillCertificate[], values[4] as ProjectExperience[],
         values[5] as HonorCertificate[], job, values[6] as AdviceLib, values[7] as SkillDict
       );
-    }).catch((error: Error) => {
-      promptAction.showToast({ message: '加载失败：' + error.message });
-    });
+      this.result = base;
+      const enabled: boolean = await SemanticMatchService.isEnabled();
+      if (!enabled) {
+        return;
+      }
+      this.aiLoading = true;
+      this.result = await SemanticMatchService.enhance(student.id, job, base);
+      this.aiLoading = false;
+    } catch (error) {
+      const message: string = error instanceof Error ? error.message : String(error);
+      promptAction.showToast({ message: '加载失败：' + message });
+    }
   }
 
   build() {
@@ -111,16 +123,37 @@ struct CandidateDetailPage {
         }
 
         if (this.result !== null) {
-          Text(`综合匹配度：${this.result.totalScore} 分`).fontSize(20)
-            .fontColor($r('app.color.brand_primary')).fontWeight(FontWeight.Bold)
+          Row({ space: 8 }) {
+            Text(`综合匹配度：${this.result.totalScore} 分`).fontSize(20)
+              .fontColor($r('app.color.brand_primary')).fontWeight(FontWeight.Bold)
+            if (this.aiLoading) {
+              Text('AI 语义分析中…').fontSize(10).fontColor('#7C63FF')
+                .padding({ left: 8, right: 8, top: 3, bottom: 3 })
+                .borderRadius(10).backgroundColor('#148E7CFF')
+            } else if (this.result.semantic === true) {
+              Text('AI 语义已融合').fontSize(9).fontColor($r('app.color.on_primary'))
+                .padding({ left: 7, right: 7, top: 2, bottom: 2 })
+                .borderRadius(9)
+                .linearGradient({ angle: 135, colors: [['#8E7CFF', 0], ['#5B45E0', 1]] })
+            }
+          }
+          .width('100%')
+          .alignItems(VerticalAlign.Center)
+
           ScoreBar({ label: '学历', score: this.result.dimensionScores.education })
           ScoreBar({ label: '技能', score: this.result.dimensionScores.skill })
           ScoreBar({ label: '证书', score: this.result.dimensionScores.certificate })
           ScoreBar({ label: '经验', score: this.result.dimensionScores.experience })
           ScoreBar({ label: '荣誉/项目', score: this.result.dimensionScores.honor })
           ScoreBar({ label: '方向', score: this.result.dimensionScores.direction })
-          Text('评分已包含学历层级、方向匹配与荣誉相关性，各维度按岗位权重加权。')
+          Text(this.result.semantic === true ?
+            '本次得分已融合大模型语义评分：达成度 = 规则分 × (1 - α) + 语义分 × α。' :
+            '评分已包含学历层级、方向匹配与荣誉相关性，各维度按岗位权重加权。')
             .fontSize(11).fontColor($r('app.color.text_secondary')).width('100%')
+          if (this.result.semanticReason !== undefined && this.result.semanticReason.length > 0) {
+            Text(`AI 语义评价：${this.result.semanticReason}`)
+              .fontSize(11).fontColor('#5B45E0').width('100%')
+          }
 
           Text('差距项').fontSize(16).fontWeight(FontWeight.Medium)
           if (this.result.gapItems.length === 0) {

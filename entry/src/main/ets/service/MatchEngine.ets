@@ -1,8 +1,10 @@
 import {
   AbilityTag, AdviceLib, DimensionScores, HonorCertificate, JobRequirement,
-  MatchResult, ProjectExperience, SkillCertificate, SkillDict, SkillDictItem, Student
+  MatchResult, MatchWeights, ProjectExperience, SemanticResult, SkillCertificate,
+  SkillDict, SkillDictItem, Student
 } from '../model/Entity';
 import { HonorLevel, HonorType, TagCategory } from '../model/Enums';
+import { Constants } from '../common/Constants';
 import { Taxonomy } from '../common/Taxonomy';
 import { TextMatcher } from '../common/TextMatcher';
 
@@ -115,6 +117,68 @@ export class MatchEngine {
       gapItems: gaps,
       suggestions: suggestions
     };
+  }
+
+  /**
+   * 语义融合：final = 规则分 × (1 - α) + 语义分 × α。
+   * α 按维度区分——技能、经验、方向这些「文字描述影响大」的维度更信任大模型；
+   * 学历、荣誉这类客观事实维度只做微调，避免模型臆测导致失真。
+   */
+  static mergeSemantic(base: MatchResult, weights: MatchWeights, semantic: SemanticResult): MatchResult {
+    const alpha: DimensionScores = Constants.SEMANTIC_ALPHA;
+    const merged: DimensionScores = {
+      education: MatchEngine.blend(base.dimensionScores.education, semantic.scores.education, alpha.education),
+      skill: MatchEngine.blend(base.dimensionScores.skill, semantic.scores.skill, alpha.skill),
+      certificate: MatchEngine.blend(base.dimensionScores.certificate, semantic.scores.certificate,
+        alpha.certificate),
+      experience: MatchEngine.blend(base.dimensionScores.experience, semantic.scores.experience, alpha.experience),
+      honor: MatchEngine.blend(base.dimensionScores.honor, semantic.scores.honor, alpha.honor),
+      direction: MatchEngine.blend(base.dimensionScores.direction, semantic.scores.direction, alpha.direction)
+    };
+    let total: number = weights.education + weights.skill + weights.certificate +
+      weights.experience + weights.honor + weights.direction;
+    if (total <= 0) {
+      total = 1;
+    }
+    const weighted: number =
+      (merged.education * weights.education +
+        merged.skill * weights.skill +
+        merged.certificate * weights.certificate +
+        merged.experience * weights.experience +
+        merged.honor * weights.honor +
+        merged.direction * weights.direction) / total;
+
+    const gaps: string[] = base.gapItems.slice();
+    for (const gap of semantic.gaps) {
+      const line: string = `语义差距：${gap}`;
+      if (gaps.length < 6 && gaps.indexOf(line) < 0) {
+        gaps.push(line);
+      }
+    }
+    const suggestions: string[] = base.suggestions.slice(0, 3);
+    if (semantic.reason.length > 0) {
+      suggestions.push(`AI 语义评价：${semantic.reason}`);
+    }
+    if (semantic.strengths.length > 0) {
+      suggestions.push(`语义优势：${semantic.strengths.join('、')}`);
+    }
+
+    return {
+      totalScore: Math.round(weighted * 1000) / 10,
+      dimensionScores: merged,
+      gapItems: gaps,
+      suggestions: suggestions,
+      semantic: true,
+      semanticScores: semantic.scores,
+      semanticOverall: semantic.overall,
+      semanticReason: semantic.reason,
+      semanticModel: semantic.model
+    };
+  }
+
+  private static blend(rule: number, semantic: number, alpha: number): number {
+    const value: number = rule * (1 - alpha) + semantic * alpha;
+    return Math.round(Math.max(0, Math.min(1, value)) * 100) / 100;
   }
 
   private static educationScore(student: Student, required: string): number {

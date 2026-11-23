@@ -1,0 +1,10 @@
+{
+  "name": "abilitymatch-auth-function",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AbilityMatch 账号服务 AGC 云函数（HTTP 触发器）",
+  "main": "index.js",
+  "engines": {
+    "node": ">=18"
+  }
+}

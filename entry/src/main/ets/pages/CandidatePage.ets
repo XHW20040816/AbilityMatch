@@ -7,7 +7,9 @@ import {
 } from '../model/Entity';
 import { MatchDirection } from '../model/Enums';
 import { honorRepo, jobRepo, matchRepo, profileRepo, studentRepo, tagRepo } from '../repository/Repositories';
+import { Constants } from '../common/Constants';
 import { MatchEngine } from '../service/MatchEngine';
+import { SemanticItem, SemanticMatchService } from '../service/SemanticMatchService';
 import { EmptyState } from '../view/EmptyState';
 import { AppViewModel } from '../viewmodel/AppViewModel';
 
@@ -25,6 +27,7 @@ struct CandidatePage {
   @State sameDirection: boolean = false;
   @State page: number = 0;
   @State total: number = 0;
+  @State aiHint: string = '';
   private pageSize: number = 10;
   private context: common.UIAbilityContext = getContext(this) as common.UIAbilityContext;
   private dict: SkillDict | null = null;
@@ -50,7 +53,7 @@ struct CandidatePage {
     });
   }
 
-  private load(): void {
+  private async load(): Promise<void> {
     if (this.jobs.length === 0) {
       this.candidates = [];
       this.total = 0;
@@ -59,30 +62,68 @@ struct CandidatePage {
     const job: JobRequirement = this.jobs[this.jobIndex];
     const direction: string = this.sameDirection ? job.majorDirection : '';
     this.candidates = [];
-    Promise.all([
-      studentRepo.listPage(this.pageSize, this.page * this.pageSize, direction),
-      studentRepo.countByDirection(direction),
-      ResourceHelper.loadAdviceLib(this.context)
-    ]).then((values: [Student[], number, AdviceLib]) => {
+    try {
+      const values: [Student[], number, AdviceLib] = await Promise.all([
+        studentRepo.listPage(this.pageSize, this.page * this.pageSize, direction),
+        studentRepo.countByDirection(direction),
+        ResourceHelper.loadAdviceLib(this.context)
+      ]);
       const students: Student[] = values[0] as Student[];
       this.total = values[1] as number;
       const advice: AdviceLib = values[2] as AdviceLib;
       if (this.page > 0 && students.length === 0 && this.total > 0) {
         this.page = Math.max(0, Math.ceil(this.total / this.pageSize) - 1);
-        this.load();
-        return [];
+        await this.load();
+        return;
       }
       const tasks: Promise<CandidateView>[] = [];
       for (const student of students) {
         tasks.push(this.buildCandidate(student, job, advice));
       }
-      return Promise.all(tasks);
-    }).then((views: CandidateView[]) => {
+      const views: CandidateView[] = await Promise.all(tasks);
       views.sort((a: CandidateView, b: CandidateView) => b.result.totalScore - a.result.totalScore);
       this.candidates = views;
-    }).catch((error: Error) => {
-      promptAction.showToast({ message: '加载失败：' + error.message });
+      await this.enhanceCandidates(job, views);
+    } catch (error) {
+      const message: string = error instanceof Error ? error.message : String(error);
+      promptAction.showToast({ message: '加载失败：' + message });
+    }
+  }
+
+  /** 对当前页候选人叠加一次大模型语义评估，并回写融合后的分数 */
+  private async enhanceCandidates(job: JobRequirement, views: CandidateView[]): Promise<void> {
+    if (views.length === 0) {
+      return;
+    }
+    const items: SemanticItem[] = views.map((view: CandidateView): SemanticItem => {
+      return { studentId: view.student.id, job: job, result: view.result } as SemanticItem;
     });
+    const results: MatchResult[] = await SemanticMatchService.enhanceBatch(items, Constants.SEMANTIC_TOPK);
+    const enhanced: CandidateView[] = [];
+    const tasks: Promise<number>[] = [];
+    let semanticCount: number = 0;
+    for (let i = 0; i < views.length; i++) {
+      const result: MatchResult = results[i];
+      if (result.semantic === true) {
+        semanticCount++;
+        tasks.push(matchRepo.replaceToday({
+          id: 0,
+          studentId: views[i].student.id,
+          jobId: job.id,
+          direction: MatchDirection.COMPANY_TO_STUDENT,
+          totalScore: result.totalScore,
+          dimensionScores: result.dimensionScores,
+          gapItems: result.gapItems,
+          suggestions: result.suggestions,
+          createTime: Date.now()
+        }));
+      }
+      enhanced.push({ student: views[i].student, result: result });
+    }
+    await Promise.all(tasks);
+    enhanced.sort((a: CandidateView, b: CandidateView) => b.result.totalScore - a.result.totalScore);
+    this.candidates = enhanced;
+    this.aiHint = semanticCount > 0 ? `已融合大模型语义评分：${semanticCount} 位候选人` : '';
   }
 
   private totalPages(): number {
@@ -120,8 +161,9 @@ struct CandidatePage {
     Column({ space: 12 }) {
       Column({ space: 6 }) {
         Text('候选人').fontSize(22).fontWeight(FontWeight.Bold).fontColor($r('app.color.text_primary'))
-        Text('按匹配度排序，点击候选人查看差距与建议')
+        Text(this.aiHint.length > 0 ? this.aiHint : '按匹配度排序，点击候选人查看差距与建议')
           .fontSize(12).fontColor($r('app.color.text_secondary'))
+          .maxLines(2).textOverflow({ overflow: TextOverflow.Ellipsis })
       }
       .width('100%')
       .alignItems(HorizontalAlign.Start)
@@ -181,7 +223,9 @@ struct CandidatePage {
                 Column({ space: 2 }) {
                   Text(`${item.result.totalScore}`).fontSize(18).fontWeight(FontWeight.Bold)
                     .fontColor($r('app.color.brand_primary'))
-                  Text('匹配分').fontSize(10).fontColor($r('app.color.text_secondary'))
+                  Text(item.result.semantic === true ? 'AI 语义分' : '匹配分')
+                    .fontSize(10)
+                    .fontColor(item.result.semantic === true ? '#5B45E0' : $r('app.color.text_secondary'))
                 }
                 .padding({ left: 10, right: 10, top: 6, bottom: 6 })
                 .borderRadius(14)

@@ -7,6 +7,7 @@ import { Style3D } from '../common/Style3D';
 import { Card3D } from '../view/Card3D';
 import { SelectItem } from '../model/Entity';
 import { AppRole } from '../model/Enums';
+import { AuthApiService, AuthConfig } from '../service/AuthApiService';
 import { authService } from '../service/AuthService';
 import { AppViewModel } from '../viewmodel/AppViewModel';
 
@@ -58,6 +59,12 @@ struct AuthPage {
   @State saved: boolean = false;
   /** 登录页彩蛋：点击顶部立体卡片弹出「Offer 看到你啦」插画 */
   @State showEgg: boolean = false;
+  /** 未登录也可配置账号服务，避免「云端账号必须先登录才能配置」死锁 */
+  @State showAuthConfig: boolean = false;
+  @State authDraftEnabled: boolean = false;
+  @State authDraftUrl: string = '';
+  @State authDraftStatus: string = '';
+  @State authDraftTesting: boolean = false;
 
   private context: common.UIAbilityContext = getContext(this) as common.UIAbilityContext;
   private educations: string[] = ['高中学历及以下', '本科', '专科', '专升本', '硕士', '博士及以上'];
@@ -84,7 +91,59 @@ struct AuthPage {
     });
   }
 
+  private openAuthConfig(): void {
+    AuthApiService.loadConfig().then((config: AuthConfig) => {
+      this.authDraftEnabled = config.enabled;
+      this.authDraftUrl = config.baseUrl;
+      this.authDraftStatus = config.enabled ? '当前已启用账号服务' : '当前使用本机账号库';
+      this.showAuthConfig = true;
+    }).catch((error: Error) => {
+      this.authDraftStatus = '读取配置失败：' + error.message;
+      this.showAuthConfig = true;
+    });
+  }
+
+  private closeAuthConfig(): void {
+    this.showAuthConfig = false;
+  }
+
+  private saveAuthDraft(): void {
+    const config: AuthConfig = {
+      enabled: this.authDraftEnabled,
+      baseUrl: this.authDraftUrl.trim()
+    };
+    AuthApiService.saveConfig(config).then(() => {
+      this.authDraftStatus = config.enabled ? '已保存并启用，登录将请求账号服务' : '已保存，使用本机账号库';
+      promptAction.showToast({ message: '账号服务配置已保存' });
+    }).catch((error: Error) => {
+      this.authDraftStatus = '保存失败：' + error.message;
+    });
+  }
+
+  private testAuthDraft(): void {
+    if (this.authDraftTesting) {
+      return;
+    }
+    this.authDraftTesting = true;
+    this.authDraftStatus = '正在连接账号服务…';
+    AuthApiService.saveConfig({ enabled: this.authDraftEnabled, baseUrl: this.authDraftUrl.trim() })
+      .then(() => AuthApiService.testConnection())
+      .then((reply: string) => {
+        this.authDraftStatus = `连接成功：${reply}`;
+      })
+      .catch((error: Error) => {
+        this.authDraftStatus = '连接失败：' + error.message;
+      })
+      .finally(() => {
+        this.authDraftTesting = false;
+      });
+  }
+
   onBackPress(): boolean {
+    if (this.showAuthConfig) {
+      this.closeAuthConfig();
+      return true;
+    }
     if (this.showEgg) {
       this.closeEgg();
       return true;
@@ -641,10 +700,16 @@ struct AuthPage {
             .backgroundColor($r('app.color.card_background'))
             .shadow({ radius: 12, color: $r('app.color.shadow'), offsetX: 0, offsetY: 4 })
 
-            Text('BOSS智聘 · 本地演示版')
-              .fontSize(10)
-              .fontColor($r('app.color.text_tertiary'))
-              .margin({ top: 2, bottom: 8 })
+            Row({ space: 10 }) {
+              Text('BOSS智聘 · 本地演示版')
+                .fontSize(10)
+                .fontColor($r('app.color.text_tertiary'))
+              Text('账号服务设置')
+                .fontSize(10)
+                .fontColor($r('app.color.brand_primary'))
+                .onClick(() => this.openAuthConfig())
+            }
+            .margin({ top: 2, bottom: 8 })
           }
           .width('100%')
           .padding({ left: 18, right: 18, top: 22, bottom: 20 })
@@ -658,6 +723,71 @@ struct AuthPage {
         angle: 165,
         colors: [[$r('app.color.app_background'), 0], [$r('app.color.app_background_end'), 1]]
       })
+
+      if (this.showAuthConfig) {
+        Column() {
+          Column({ space: 12 }) {
+            Row() {
+              Text('账号服务').fontSize(17).fontWeight(FontWeight.Medium)
+                .fontColor($r('app.color.text_primary'))
+              Blank()
+              Text('关闭').fontSize(13).fontColor($r('app.color.text_secondary'))
+                .onClick(() => this.closeAuthConfig())
+            }
+            .width('100%')
+
+            Text('开启后登录与注册请求云端账号服务；连不上会自动回退本机账号库。')
+              .fontSize(11).fontColor($r('app.color.text_secondary')).width('100%')
+
+            Row() {
+              Text('启用云端账号').fontSize(13).fontColor($r('app.color.text_primary'))
+              Blank()
+              Toggle({ type: ToggleType.Switch, isOn: this.authDraftEnabled })
+                .selectedColor('#1F8A70')
+                .onChange((isOn: boolean) => { this.authDraftEnabled = isOn; })
+            }
+            .width('100%')
+
+            TextInput({ text: this.authDraftUrl, placeholder: '服务地址，如 http://10.0.2.2:8080' })
+              .fontSize(12)
+              .height(44)
+              .borderRadius(12)
+              .onChange((value: string) => { this.authDraftUrl = value; })
+
+            Row({ space: 10 }) {
+              Button(this.authDraftTesting ? '测试中…' : '测试连接')
+                .fontSize(12).height(36).layoutWeight(1).borderRadius(18)
+                .backgroundColor($r('app.color.surface_muted'))
+                .fontColor($r('app.color.text_primary'))
+                .enabled(!this.authDraftTesting)
+                .onClick(() => this.testAuthDraft())
+              Button('保存')
+                .fontSize(12).height(36).layoutWeight(1).borderRadius(18)
+                .backgroundColor('#1F8A70')
+                .fontColor($r('app.color.on_primary'))
+                .onClick(() => this.saveAuthDraft())
+            }
+            .width('100%')
+
+            if (this.authDraftStatus.length > 0) {
+              Text(this.authDraftStatus)
+                .fontSize(10).width('100%')
+                .fontColor(this.authDraftStatus.indexOf('失败') >= 0 ?
+                  $r('app.color.danger') : $r('app.color.text_secondary'))
+            }
+          }
+          .width('88%')
+          .padding(18)
+          .borderRadius(20)
+          .backgroundColor($r('app.color.card_background'))
+          .alignItems(HorizontalAlign.Start)
+        }
+        .width('100%')
+        .height('100%')
+        .backgroundColor('#8C04222B')
+        .justifyContent(FlexAlign.Center)
+        .transition(TransitionEffect.OPACITY)
+      }
 
       if (this.showEgg) {
         Column() {

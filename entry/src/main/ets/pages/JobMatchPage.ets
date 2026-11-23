@@ -7,7 +7,9 @@ import {
   ProjectExperience, SkillCertificate, SkillDict, Student
 } from '../model/Entity';
 import { honorRepo, jobRepo, matchRepo, profileRepo, studentRepo, tagRepo } from '../repository/Repositories';
+import { Constants } from '../common/Constants';
 import { MatchEngine } from '../service/MatchEngine';
+import { SemanticItem, SemanticMatchService } from '../service/SemanticMatchService';
 import { EmptyState } from '../view/EmptyState';
 
 interface JobView {
@@ -62,18 +64,19 @@ struct JobMatchPage {
     this.load();
   }
 
-  private load(): void {
-    Promise.all([
-      studentRepo.getById(this.studentId),
-      tagRepo.listByStudent(this.studentId),
-      profileRepo.listSkillCerts(this.studentId),
-      profileRepo.listProjects(this.studentId),
-      honorRepo.list(this.studentId, { keyword: '', honorType: '', level: '', yearFrom: 0, yearTo: 0, issuer: '' }, 200, 0),
-      jobRepo.listActive(),
-      ResourceHelper.loadAdviceLib(this.context),
-      ResourceHelper.loadSkillDict(this.context)
-    ]).then((values: [Student | null, AbilityTag[], SkillCertificate[], ProjectExperience[],
-      HonorCertificate[], JobRequirement[], AdviceLib, SkillDict]) => {
+  private async load(): Promise<void> {
+    try {
+      const values: [Student | null, AbilityTag[], SkillCertificate[], ProjectExperience[],
+        HonorCertificate[], JobRequirement[], AdviceLib, SkillDict] = await Promise.all([
+        studentRepo.getById(this.studentId),
+        tagRepo.listByStudent(this.studentId),
+        profileRepo.listSkillCerts(this.studentId),
+        profileRepo.listProjects(this.studentId),
+        honorRepo.list(this.studentId, { keyword: '', honorType: '', level: '', yearFrom: 0, yearTo: 0, issuer: '' }, 200, 0),
+        jobRepo.listActive(),
+        ResourceHelper.loadAdviceLib(this.context),
+        ResourceHelper.loadSkillDict(this.context)
+      ]);
       this.student = values[0];
       this.tags = values[1];
       this.certs = values[2];
@@ -85,15 +88,36 @@ struct JobMatchPage {
         promptAction.showToast({ message: '未找到当前学生资料' });
         return;
       }
-      this.allViews = this.computeViews(values[5]);
+      const base: JobView[] = this.computeViews(values[5]);
+      this.allViews = base;
+      this.allViews = await this.enhanceViews(base);
       const tasks: Promise<void>[] = [];
       for (const view of this.allViews) {
         tasks.push(this.saveMatch(view));
       }
-      return Promise.all(tasks).then(() => {});
-    }).catch((error: Error) => {
-      promptAction.showToast({ message: '匹配数据加载失败：' + error.message });
+      await Promise.all(tasks);
+    } catch (error) {
+      const message: string = error instanceof Error ? error.message : String(error);
+      promptAction.showToast({ message: '匹配数据加载失败：' + message });
+    }
+  }
+
+  /** 在本地规则分之上叠加一次大模型语义评估；未配置/失败时原样返回 */
+  private async enhanceViews(views: JobView[]): Promise<JobView[]> {
+    if (views.length === 0) {
+      return views;
+    }
+    const items: SemanticItem[] = views.map((view: JobView): SemanticItem => {
+      return { studentId: this.studentId, job: view.job, result: view.result } as SemanticItem;
     });
+    const results: MatchResult[] = await SemanticMatchService.enhanceBatch(items, Constants.SEMANTIC_TOPK);
+    const enhanced: JobView[] = [];
+    for (let i = 0; i < views.length; i++) {
+      enhanced.push({ job: views[i].job, result: results[i] });
+    }
+    // 语义分参与融合后分数会变，需要重新排序
+    enhanced.sort((a: JobView, b: JobView) => b.result.totalScore - a.result.totalScore);
+    return enhanced;
   }
 
   private computeViews(jobs: JobRequirement[]): JobView[] {
@@ -171,13 +195,14 @@ struct JobMatchPage {
       group.companyName.toLowerCase().includes(kw) || group.topJobs.toLowerCase().includes(kw));
   }
 
-  private selectCompany(group: CompanyGroup): void {
+  private async selectCompany(group: CompanyGroup): Promise<void> {
     this.selectedCompanyId = group.companyId;
     this.selectedCompanyName = group.companyName;
     const jobs: JobRequirement[] = this.allViews
       .filter((view: JobView) => view.job.companyId === group.companyId)
       .map((view: JobView) => view.job);
     this.companyViews = this.computeViews(jobs);
+    this.companyViews = await this.enhanceViews(this.companyViews);
   }
 
   private selectJob(view: JobView): void {
@@ -251,8 +276,14 @@ struct JobMatchPage {
   @Builder
   jobCard(view: JobView) {
     Column({ space: 8 }) {
-      Row() {
+      Row({ space: 6 }) {
         Text(view.job.jobTitle).fontSize(16).fontWeight(FontWeight.Medium).layoutWeight(1)
+        if (view.result.semantic === true) {
+          Text('AI 语义').fontSize(10).fontColor($r('app.color.on_primary'))
+            .padding({ left: 7, right: 7, top: 3, bottom: 3 })
+            .borderRadius(10)
+            .linearGradient({ angle: 135, colors: [['#8E7CFF', 0], ['#5B45E0', 1]] })
+        }
         Text(`${view.result.totalScore}`).fontSize(18).fontWeight(FontWeight.Bold)
           .fontColor($r('app.color.brand_primary'))
       }.width('100%')

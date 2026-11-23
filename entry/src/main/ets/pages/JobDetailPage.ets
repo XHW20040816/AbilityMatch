@@ -9,6 +9,7 @@ import {
 } from '../model/Entity';
 import { honorRepo, jobRepo, profileRepo, studentRepo, tagRepo } from '../repository/Repositories';
 import { MatchEngine } from '../service/MatchEngine';
+import { SemanticMatchService } from '../service/SemanticMatchService';
 import { Card3D } from '../view/Card3D';
 import { ScoreBar } from '../view/ScoreBar';
 import { ScoreBreakdown } from '../view/ScoreBreakdown';
@@ -20,6 +21,7 @@ struct JobDetailPage {
   @State studentId: number = 1;
   @State job: JobRequirement | null = null;
   @State result: MatchResult | null = null;
+  @State aiLoading: boolean = false;
   private context: common.UIAbilityContext = getContext(this) as common.UIAbilityContext;
 
   aboutToAppear(): void {
@@ -33,18 +35,19 @@ struct JobDetailPage {
     this.load();
   }
 
-  private load(): void {
-    Promise.all([
-      jobRepo.getById(this.jobId),
-      studentRepo.getById(this.studentId),
-      tagRepo.listByStudent(this.studentId),
-      profileRepo.listSkillCerts(this.studentId),
-      profileRepo.listProjects(this.studentId),
-      honorRepo.list(this.studentId, { keyword: '', honorType: '', level: '', yearFrom: 0, yearTo: 0, issuer: '' }, 200, 0),
-      ResourceHelper.loadAdviceLib(this.context),
-      ResourceHelper.loadSkillDict(this.context)
-    ]).then((values: [JobRequirement | null, Student | null, AbilityTag[], SkillCertificate[],
-      ProjectExperience[], HonorCertificate[], AdviceLib, SkillDict]) => {
+  private async load(): Promise<void> {
+    try {
+      const values: [JobRequirement | null, Student | null, AbilityTag[], SkillCertificate[],
+        ProjectExperience[], HonorCertificate[], AdviceLib, SkillDict] = await Promise.all([
+        jobRepo.getById(this.jobId),
+        studentRepo.getById(this.studentId),
+        tagRepo.listByStudent(this.studentId),
+        profileRepo.listSkillCerts(this.studentId),
+        profileRepo.listProjects(this.studentId),
+        honorRepo.list(this.studentId, { keyword: '', honorType: '', level: '', yearFrom: 0, yearTo: 0, issuer: '' }, 200, 0),
+        ResourceHelper.loadAdviceLib(this.context),
+        ResourceHelper.loadSkillDict(this.context)
+      ]);
       const job: JobRequirement = values[0] as JobRequirement;
       const student: Student = values[1] as Student;
       const tags: AbilityTag[] = values[2] as AbilityTag[];
@@ -54,10 +57,20 @@ struct JobDetailPage {
       const advice: AdviceLib = values[6] as AdviceLib;
       const dict: SkillDict = values[7] as SkillDict;
       this.job = job;
-      this.result = MatchEngine.compute(student, tags, certs, projects, honors, job, advice, dict);
-    }).catch((error: Error) => {
-      promptAction.showToast({ message: '加载失败：' + error.message });
-    });
+      // 先给出本地规则分，页面立刻可用；随后异步叠加语义分，拿到后再刷新
+      const base: MatchResult = MatchEngine.compute(student, tags, certs, projects, honors, job, advice, dict);
+      this.result = base;
+      const enabled: boolean = await SemanticMatchService.isEnabled();
+      if (!enabled) {
+        return;
+      }
+      this.aiLoading = true;
+      this.result = await SemanticMatchService.enhance(this.studentId, job, base);
+      this.aiLoading = false;
+    } catch (error) {
+      const message: string = error instanceof Error ? error.message : String(error);
+      promptAction.showToast({ message: '加载失败：' + message });
+    }
   }
 
   private openGrowthPlan(): void {
@@ -165,6 +178,26 @@ struct JobDetailPage {
               }
               .width('100%')
               .alignItems(VerticalAlign.Bottom)
+
+              Row({ space: 8 }) {
+                if (this.aiLoading) {
+                  Text('AI 语义分析中…').fontSize(10).fontColor('#7C63FF')
+                    .padding({ left: 8, right: 8, top: 3, bottom: 3 })
+                    .borderRadius(10)
+                    .backgroundColor('#148E7CFF')
+                } else if (this.result.semantic === true) {
+                  Text(`AI 语义已融合${this.result.semanticModel !== undefined ?
+                    ' · ' + this.result.semanticModel : ''}`)
+                    .fontSize(10).fontColor($r('app.color.on_primary'))
+                    .padding({ left: 8, right: 8, top: 3, bottom: 3 })
+                    .borderRadius(10)
+                    .linearGradient({ angle: 135, colors: [['#8E7CFF', 0], ['#5B45E0', 1]] })
+                } else {
+                  Text('本地六维规则评分').fontSize(10).fontColor($r('app.color.text_tertiary'))
+                }
+              }
+              .width('100%')
+              .justifyContent(FlexAlign.Start)
 
               ScoreBar({ label: '学历', score: this.result.dimensionScores.education })
               ScoreBar({ label: '技能', score: this.result.dimensionScores.skill })

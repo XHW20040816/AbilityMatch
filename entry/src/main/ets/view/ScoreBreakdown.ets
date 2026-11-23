@@ -1,4 +1,5 @@
-import { MatchResult, MatchWeights } from '../model/Entity';
+import { Constants } from '../common/Constants';
+import { MatchResult, MatchWeights, SemanticScores } from '../model/Entity';
 
 interface ScoreRow {
   label: string;
@@ -96,6 +97,29 @@ export struct ScoreBreakdown {
     ];
   }
 
+  /** 语义维度小标签，如「技能 85」 */
+  private semanticLabels(): string[] {
+    const scores: SemanticScores | undefined = this.result.semanticScores;
+    if (scores === undefined) {
+      return [];
+    }
+    return [
+      `技能 ${Math.round(scores.skill * 100)}`,
+      `证书 ${Math.round(scores.certificate * 100)}`,
+      `经验 ${Math.round(scores.experience * 100)}`,
+      `方向 ${Math.round(scores.direction * 100)}`,
+      `学历 ${Math.round(scores.education * 100)}`,
+      `荣誉 ${Math.round(scores.honor * 100)}`
+    ];
+  }
+
+  private alphaText(): string {
+    const alpha = Constants.SEMANTIC_ALPHA;
+    return `技能 ${Math.round(alpha.skill * 100)}%、经验 ${Math.round(alpha.experience * 100)}%、` +
+      `方向 ${Math.round(alpha.direction * 100)}%、证书 ${Math.round(alpha.certificate * 100)}%、` +
+      `学历 ${Math.round(alpha.education * 100)}%、荣誉 ${Math.round(alpha.honor * 100)}%`;
+  }
+
   private rawColor(raw: number): ResourceColor {
     if (raw >= 0.85) {
       return $r('app.color.success');
@@ -108,13 +132,19 @@ export struct ScoreBreakdown {
 
   build() {
     Column({ space: 8 }) {
-      Row() {
+      Row({ space: 6 }) {
         Text('得分明细').fontSize(16).fontWeight(FontWeight.Medium).layoutWeight(1)
+        if (this.result.semantic === true) {
+          Text('AI 语义已融合').fontSize(9).fontColor($r('app.color.on_primary'))
+            .padding({ left: 7, right: 7, top: 2, bottom: 2 })
+            .borderRadius(9)
+            .linearGradient({ angle: 135, colors: [['#8E7CFF', 0], ['#5B45E0', 1]] })
+        }
         Text(`总分 ${this.result.totalScore}`).fontSize(13)
           .fontColor($r('app.color.brand_primary'))
         Text(this.expanded ? '收起' : '展开').fontSize(11)
           .fontColor($r('app.color.text_secondary'))
-          .margin({ left: 8 })
+          .margin({ left: 4 })
           .onClick(() => { this.expanded = !this.expanded; })
       }
       .width('100%')
@@ -147,6 +177,27 @@ export struct ScoreBreakdown {
 
         Text('总分 = Σ(达成度 × 权重占比) × 100，权重占比按六维权重归一化')
           .fontSize(10).fontColor($r('app.color.text_secondary')).width('100%')
+
+        if (this.result.semantic === true) {
+          Divider().color('#1A0E5C5C').margin({ top: 4, bottom: 2 })
+          Text('大模型语义评分（0-100）').fontSize(11).fontColor('#5B45E0')
+          Flex({ wrap: FlexWrap.Wrap }) {
+            ForEach(this.semanticLabels(), (label: string) => {
+              Text(label).fontSize(10).fontColor('#5B45E0')
+                .padding({ left: 8, right: 8, top: 3, bottom: 3 })
+                .margin({ right: 6, bottom: 4 })
+                .borderRadius(9)
+                .backgroundColor('#148E7CFF')
+            }, (label: string) => label)
+          }
+          .width('100%')
+          if (this.result.semanticReason !== undefined && this.result.semanticReason.length > 0) {
+            Text(`AI 语义评价：${this.result.semanticReason}`)
+              .fontSize(10).fontColor($r('app.color.text_label')).width('100%')
+          }
+          Text(`融合方式：达成度 = 规则分 × (1 - α) + 语义分 × α；α = ${this.alphaText()}`)
+            .fontSize(9).fontColor($r('app.color.text_secondary')).width('100%')
+        }
       }
     }
     .width('100%').padding(14).borderRadius(16)
