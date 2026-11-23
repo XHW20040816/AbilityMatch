@@ -1,0 +1,20 @@
+{
+  "src": [
+    "pages/AuthPage",
+    "pages/Index",
+    "pages/StudentEditPage",
+    "pages/GrowthGuidePage",
+    "pages/CertificatePage",
+    "pages/CertificateEditPage",
+    "pages/PortraitPage",
+    "pages/JobListPage",
+    "pages/JobMatchPage",
+    "pages/JobDetailPage",
+    "pages/CompanyPage",
+    "pages/JobPublishPage",
+    "pages/CandidatePage",
+    "pages/CandidateDetailPage",
+    "pages/MatchRecordPage",
+    "pages/DataToolPage"
+  ]
+}

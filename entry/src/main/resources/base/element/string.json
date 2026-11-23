@@ -1,0 +1,16 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "学生能力画像与岗位匹配应用主模块"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "学生能力画像与企业岗位需求匹配应用"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "BOSS智聘"
+    }
+  ]
+}

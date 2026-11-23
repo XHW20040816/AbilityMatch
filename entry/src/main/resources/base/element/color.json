@@ -1,0 +1,30 @@
+{
+  "color": [
+    { "name": "start_window_background", "value": "#F2FBFA" },
+    { "name": "app_background", "value": "#F2FBFA" },
+    { "name": "card_background", "value": "#FFFFFF" },
+    { "name": "surface_muted", "value": "#E6F6F4" },
+    { "name": "text_primary", "value": "#123238" },
+    { "name": "text_secondary", "value": "#5C7B80" },
+    { "name": "text_tertiary", "value": "#78979B" },
+    { "name": "brand_primary", "value": "#12AEB6" },
+    { "name": "brand_soft", "value": "#D9F6F4" },
+    { "name": "accent_peach", "value": "#FFB69A" },
+    { "name": "accent_peach_soft", "value": "#FFF0E8" },
+    { "name": "success", "value": "#2FB37A" },
+    { "name": "danger", "value": "#E86A67" },
+    { "name": "warning", "value": "#F3A83B" },
+    { "name": "accent_purple", "value": "#8B7BD8" },
+    { "name": "chip_background", "value": "#E4F7F5" },
+    { "name": "track_background", "value": "#DCEEEC" },
+    { "name": "overlay", "value": "#66000000" },
+    { "name": "shadow", "value": "#1A0E5C5C" },
+    { "name": "shadow_deep", "value": "#330E5C5C" },
+    { "name": "text_label", "value": "#2C4A4F" },
+    { "name": "on_primary", "value": "#FFFFFF" },
+    { "name": "app_background_end", "value": "#E1F4F2" },
+    { "name": "depth_teal", "value": "#0A7C87" },
+    { "name": "depth_white", "value": "#D3EAE8" },
+    { "name": "glass_white", "value": "#E6FFFFFF" }
+  ]
+}

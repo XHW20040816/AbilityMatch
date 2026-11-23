@@ -1,0 +1,16 @@
+{
+  "string": [
+    {
+      "name": "module_test_desc",
+      "value": "AbilityMatch UI test module"
+    },
+    {
+      "name": "TestAbility_desc",
+      "value": "AbilityMatch UI test ability"
+    },
+    {
+      "name": "TestAbility_label",
+      "value": "AbilityMatch UI Test"
+    }
+  ]
+}

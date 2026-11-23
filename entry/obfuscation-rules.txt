@@ -1,0 +1,5 @@
+# 代码混淆规则（骨架占位，可按需追加）
+-enable-property-obfuscation
+-enable-toplevel-obfuscation
+-enable-filename-obfuscation
+-enable-export-obfuscation

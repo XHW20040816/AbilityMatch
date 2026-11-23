@@ -1,0 +1,130 @@
+{
+  "templates": [
+    {
+      "direction": "软件开发",
+      "stage": "大一上",
+      "tasks": [
+        { "title": "完成专业导论学习", "desc": "了解专业方向与课程体系，形成初步学习路线", "category": "COURSE", "offsetDays": 30 },
+        { "title": "掌握一门编程语言基础", "desc": "完成 C 或 Python 基础语法学习与练习", "category": "COURSE", "offsetDays": 90 }
+      ]
+    },
+    {
+      "direction": "软件开发",
+      "stage": "大一下",
+      "tasks": [
+        { "title": "参加一次校内竞赛", "desc": "组队参加程序设计或创新类竞赛，熟悉流程", "category": "COMPETITION", "offsetDays": 60 },
+        { "title": "通过计算机二级", "desc": "备考并取得计算机等级考试二级证书", "category": "CERT", "offsetDays": 120 }
+      ]
+    },
+    {
+      "direction": "软件开发",
+      "stage": "大二上",
+      "tasks": [
+        { "title": "完成一个小型项目", "desc": "独立或组队完成具备完整功能的项目Demo", "category": "PROJECT", "offsetDays": 90 },
+        { "title": "学习数据库基础", "desc": "掌握 SQL 与关系型数据库基本设计", "category": "COURSE", "offsetDays": 60 }
+      ]
+    },
+    {
+      "direction": "软件开发",
+      "stage": "大二下",
+      "tasks": [
+        { "title": "参加省级以上竞赛", "desc": "以团队形式参加省级学科竞赛", "category": "COMPETITION", "offsetDays": 100 },
+        { "title": "考取英语六级", "desc": "完成 CET-6 备考并参加考试", "category": "CERT", "offsetDays": 150 }
+      ]
+    },
+    {
+      "direction": "软件开发",
+      "stage": "大三上",
+      "tasks": [
+        { "title": "完成鸿蒙应用开发入门", "desc": "学习 ArkTS 与 ArkUI，完成一个 HarmonyOS 示例应用", "category": "PROJECT", "offsetDays": 90 },
+        { "title": "准备实习简历", "desc": "整理竞赛、证书与项目经历，形成第一版简历", "category": "PROJECT", "offsetDays": 120 }
+      ]
+    },
+    {
+      "direction": "软件开发",
+      "stage": "大三下",
+      "tasks": [
+        { "title": "完成一段企业实习", "desc": "在目标岗位方向完成至少 1 段实习或等价项目", "category": "PROJECT", "offsetDays": 150 },
+        { "title": "参加校招预备训练", "desc": "完成算法与面试准备，参加模拟面试", "category": "COMPETITION", "offsetDays": 120 }
+      ]
+    },
+    {
+      "direction": "软件开发",
+      "stage": "大四上",
+      "tasks": [
+        { "title": "完善能力档案", "desc": "补齐竞赛、证书与项目材料，形成可用于投递的完整档案", "category": "PROJECT", "offsetDays": 30 },
+        { "title": "参加秋季校园招聘", "desc": "按目标岗位投递简历，记录面试与匹配反馈", "category": "COMPETITION", "offsetDays": 90 }
+      ]
+    },
+    {
+      "direction": "软件开发",
+      "stage": "大四下",
+      "tasks": [
+        { "title": "完成毕业设计", "desc": "按计划完成系统实现、测试与论文撰写", "category": "PROJECT", "offsetDays": 120 },
+        { "title": "确定就业去向", "desc": "对比岗位匹配结果，完成签约或升学准备", "category": "COURSE", "offsetDays": 90 }
+      ]
+    },
+    {
+      "direction": "嵌入式",
+      "stage": "大一上",
+      "tasks": [
+        { "title": "掌握电路基础", "desc": "完成模拟与数字电路基础学习", "category": "COURSE", "offsetDays": 90 }
+      ]
+    },
+    {
+      "direction": "嵌入式",
+      "stage": "大一下",
+      "tasks": [
+        { "title": "学习 C 语言与单片机入门", "desc": "掌握 C 语言指针与单片机最小系统", "category": "COURSE", "offsetDays": 90 },
+        { "title": "完成一次电子制作", "desc": "焊接并调试一个简单电子小作品", "category": "PROJECT", "offsetDays": 120 }
+      ]
+    },
+    {
+      "direction": "嵌入式",
+      "stage": "大二上",
+      "tasks": [
+        { "title": "完成单片机项目", "desc": "基于常见单片机完成一个可演示作品", "category": "PROJECT", "offsetDays": 90 }
+      ]
+    },
+    {
+      "direction": "嵌入式",
+      "stage": "大二下",
+      "tasks": [
+        { "title": "参加电子设计竞赛", "desc": "组队参加校级或省级电子设计类竞赛", "category": "COMPETITION", "offsetDays": 100 },
+        { "title": "通过计算机二级", "desc": "备考并取得计算机等级考试二级证书", "category": "CERT", "offsetDays": 120 }
+      ]
+    },
+    {
+      "direction": "嵌入式",
+      "stage": "大三上",
+      "tasks": [
+        { "title": "学习嵌入式操作系统", "desc": "掌握 RTOS 或 Linux 驱动基础", "category": "COURSE", "offsetDays": 90 },
+        { "title": "完成综合嵌入式项目", "desc": "完成传感器采集、通信与上位机联调", "category": "PROJECT", "offsetDays": 120 }
+      ]
+    },
+    {
+      "direction": "嵌入式",
+      "stage": "大三下",
+      "tasks": [
+        { "title": "完成企业实习", "desc": "在嵌入式相关岗位完成至少 1 段实习", "category": "PROJECT", "offsetDays": 150 },
+        { "title": "准备技术面试", "desc": "梳理 C 语言、电路与项目细节，参加模拟面试", "category": "COMPETITION", "offsetDays": 120 }
+      ]
+    },
+    {
+      "direction": "嵌入式",
+      "stage": "大四上",
+      "tasks": [
+        { "title": "完善能力档案", "desc": "整理竞赛、证书与项目材料，形成投递档案", "category": "PROJECT", "offsetDays": 30 },
+        { "title": "参加秋季校园招聘", "desc": "面向嵌入式岗位投递并记录匹配反馈", "category": "COMPETITION", "offsetDays": 90 }
+      ]
+    },
+    {
+      "direction": "嵌入式",
+      "stage": "大四下",
+      "tasks": [
+        { "title": "完成毕业设计", "desc": "完成系统实现、测试与论文撰写", "category": "PROJECT", "offsetDays": 120 },
+        { "title": "确定就业去向", "desc": "结合岗位匹配结果完成签约或升学准备", "category": "COURSE", "offsetDays": 90 }
+      ]
+    }
+  ]
+}
