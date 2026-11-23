@@ -149,4 +149,4 @@ hvigorw --mode module -p module=entry@ohosTest test
 
 ## 许可说明
 
-本项目为毕业设计作品，仅供学习与交流使用。
+本项目仅供学习与交流使用。
